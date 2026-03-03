@@ -23,4 +23,9 @@ if [[ ! -f "prompts.py" ]]; then
   exit 1
 fi
 
-python3 prompts.py "$@"
+FOUND_PATH="$(pwd)/prompts.py"
+DEST_PATH="$HOME/prompts.py"
+
+echo "Found prompts.py at: $FOUND_PATH"
+mv "$FOUND_PATH" "$DEST_PATH"
+echo "Moved prompts.py to: $DEST_PATH"
