@@ -18,14 +18,19 @@ trap cleanup EXIT
 git clone --depth 1 "$REPO_URL" "$TMP_DIR/repo" >/dev/null 2>&1
 cd "$TMP_DIR/repo"
 
-if [[ ! -f "prompts.py" ]]; then
-  echo "File not found in repo: prompts.py" >&2
-  exit 1
-fi
+FILES_TO_MOVE=("prompts.py" "query.py")
 
-FOUND_PATH="$(pwd)/prompts.py"
-DEST_PATH="$HOME/prompts.py"
+for file_name in "${FILES_TO_MOVE[@]}"; do
+  if [[ ! -f "$file_name" ]]; then
+    echo "File not found in repo: $file_name" >&2
+    exit 1
+  fi
+done
 
-echo "Found prompts.py at: $FOUND_PATH"
-mv "$FOUND_PATH" "$DEST_PATH"
-echo "Moved prompts.py to: $DEST_PATH"
+for file_name in "${FILES_TO_MOVE[@]}"; do
+  found_path="$(pwd)/$file_name"
+  dest_path="$HOME/$file_name"
+  echo "Found $file_name at: $found_path"
+  mv "$found_path" "$dest_path"
+  echo "Moved $file_name to: $dest_path"
+done

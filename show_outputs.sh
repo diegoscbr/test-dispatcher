@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for f in prompts.csv context_prompts.csv; do
+for f in prompts.csv context_prompts.csv responses.csv; do
   echo "===== $f ====="
   if [[ -f "$f" ]]; then
     cat "$f"
@@ -10,4 +10,3 @@ for f in prompts.csv context_prompts.csv; do
   fi
   echo
 done
-
