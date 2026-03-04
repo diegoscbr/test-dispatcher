@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 import follow_up_prompts
+import phase2
 import prompts
 import query
 POLL_INTERVAL_SECONDS = 2
@@ -61,6 +62,14 @@ def _run_followup_with_clean_argv() -> int:
     finally:
         sys.argv = original_argv
 
+def _run_phase2_with_clean_argv() -> int:
+    original_argv = sys.argv[:]
+    try:
+        sys.argv = [original_argv[0]]
+        return _run_entrypoint("phase2.main()", phase2.main)
+    finally:
+        sys.argv = original_argv
+
 def main() -> int:
     workdir = Path.cwd()
     prompts_code = _run_entrypoint("prompts.main()", prompts.main)
@@ -84,10 +93,15 @@ def main() -> int:
         followup_code = _run_followup_with_clean_argv()
         if followup_code != 0:
             print(f"[exec] follow_up_prompts.main() failed with exit code {followup_code}")
-        return followup_code
+            return followup_code
     else:
         print("[exec] No follow-up candidates; skipping Phase 1.5")
-        return 0
+
+    # Phase 2 (always runs)
+    phase2_code = _run_phase2_with_clean_argv()
+    if phase2_code != 0:
+        print(f"[exec] phase2.main() failed with exit code {phase2_code}")
+    return phase2_code
 
 if __name__ == "__main__":
     raise SystemExit(main())

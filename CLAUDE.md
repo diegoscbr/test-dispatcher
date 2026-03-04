@@ -8,22 +8,22 @@ This is a **GEO/AI-visibility test dispatcher** — a pipeline that generates se
 
 ## Architecture
 
-The pipeline has three stages orchestrated by `execution.py`:
+The pipeline has four stages orchestrated by `execution.py`:
 
 1. **Prompt Generation** (`prompts.py`, ~2400 lines) — Reads persona data from `audience_habbits.csv` (and optionally client metadata from `pmgclient.json`, `keywords.csv`, `competitors.csv`), calls OpenAI to generate search prompts per brand/persona/funnel-stage across 7 categories (Learn & Understand, Recommendations, Compare & Decide, Price & Value, How-To & Setup, Fix & Troubleshoot, Reviews & Social Proof), and writes `prompts.csv` + `context_prompts.csv`.
 
 2. **Query Execution** (`query.py`, ~1350 lines) — Reads `prompts.csv`, sends each prompt to one or more LLM models (default: `gpt-5.2-chat-latest`, `gemini-2.0-flash`), and writes `responses.csv`. Supports concurrent batching, multiple models, Gemini grounding URL resolution, web-search-enabled models (OpenAI Responses API `web_search` tool and Gemini `google_search` tool), and text normalization (mojibake repair, Unicode NFKC normalization, smart punctuation replacement).
 
-3. **Orchestrator** (`execution.py`, ~60 lines) — Runs `prompts.main()` then polls for the required CSV files (`prompts.csv`, `context_prompts.csv`) at 2-second intervals before running `query.main()`. Entry point: `python execution.py`.
+3. **Follow-Up Prompts** (`follow_up_prompts.py`, ~2000 lines) — Phase 1.5: conditionally runs if `responses.csv` contains follow-up candidates. Generates follow-up prompts and writes `Phase15_Responses.csv`.
 
-### Additional Modules
+4. **Phase 2 Deep Conversations** (`phase2.py`, ~1320 lines) — Always runs. Reads `Phase15_Responses.csv` (falls back to `responses.csv` if unavailable), generates a next user message per row, dispatches it to the original model, and writes `phase2_responses.csv`.
 
-- `follow_up_prompts.py` (~2000 lines) — Standalone Phase 1.5 follow-up prompt generation. Not called by `execution.py`; run independently for follow-up analysis rows.
+5. **Orchestrator** (`execution.py`, ~100 lines) — Runs stages 1–4 sequentially, polling for required CSV files between stages. Entry point: `python execution.py`.
 
 ### Shell Scripts
 
 - `runner.sh` — Clones this repo into a temp dir and moves `prompts.py` + `query.py` to `$HOME` (used for deployment/dispatcher environments).
-- `show_outputs.sh` — Prints contents of `prompts.csv`, `context_prompts.csv`, and `responses.csv` for quick inspection.
+- `show_outputs.sh` — Prints contents of `prompts.csv`, `context_prompts.csv`, `responses.csv`, `Phase15_Responses.csv`, and `phase2_responses.csv` for quick inspection.
 
 ## Running
 
@@ -50,6 +50,8 @@ bash show_outputs.sh
 
 **query.py**: `--prompts`, `--out`, `--models` (comma-separated), `--model`, `--context-prompts`, `--workers` (default: 4), `--batch-size` (default: 1), `--max-tokens` (default: 1200), `--temperature` (default: 0.2), `--timeout` (default: 60), `--sleep` (default: 0.0), `--max-rows`, `--gemini-search` (auto/force/off), `--openai-api-key`, `--gemini-api-key`
 
+**phase2.py**: `--phase15-responses` (default: Phase15_Responses.csv), `--phase1-responses` (default: responses.csv), `--audience` (default: audience_habbits.csv), `--out` (default: phase2_responses.csv), `--model` (default: gpt-5.2-chat-latest), `--temperature` (default: 0.2), `--max-tokens` (default: 1200), `--system-prompt`, `--openai-api-key`, `--gemini-api-key`, `--timeout` (default: 60), `--max-workers` (default: 24), `--openai-rpm` (default: 60), `--gemini-rpm` (default: 60), `--max-retries` (default: 6)
+
 ## Environment Variables
 
 - `OPENAI_API_KEY` — Required for both prompt generation and query execution
@@ -67,7 +69,14 @@ bash show_outputs.sh
 audience_habbits.csv ──┐
 pmgclient.json ────────┤
 keywords.csv ──────────┼─→ prompts.py ─→ prompts.csv + context_prompts.csv ─→ query.py ─→ responses.csv
-competitors.csv ───────┘
+competitors.csv ───────┘                                                                       │
+                                                                          follow_up_prompts.py ←┘ (conditional)
+                                                                                       │
+                                                                              Phase15_Responses.csv
+                                                                                       │
+                                                                              phase2.py ←┘ (always; falls back to responses.csv)
+                                                                                       │
+                                                                              phase2_responses.csv
 ```
 
 ## CSV Schemas
@@ -77,6 +86,10 @@ competitors.csv ───────┘
 **context_prompts.csv**: Same schema as prompts.csv (base prompt + contextualized variant per prompt)
 
 **responses.csv**: `persona_id, brand_id, brand, prompt_id, prompt, category, type, response, model`
+
+**Phase15_Responses.csv**: Same schema as responses.csv with follow-up prompt/response columns added.
+
+**phase2_responses.csv**: Inherits input columns from Phase 1.5 (or Phase 1) plus `p2_prompt, p2_response, p2_category`.
 
 **Prompt ID format**: `b{brand_index:04d}_p{phase}_q{prompt_counter:04d}_{persona_suffix}` (persona_suffix = first 8 chars of persona_id or "base")
 
