@@ -1335,8 +1335,7 @@ def main() -> None:
     base_columns = list(prompts_df.columns)
     out_columns = base_columns + ["response", "model", "search_queries", "safe_urls"]
     out_df = pd.DataFrame(out_rows, columns=out_columns)
-    # Write CSV with UTF-8 BOM so Excel/Sheets detect UTF-8 correctly
-    out_df.to_csv(args.out, index=False, encoding="utf-8-sig")
+    out_df.to_csv(args.out, index=False, encoding="utf-8")
     print(f"Wrote {args.out} ({len(out_df)} rows)")
 
 
