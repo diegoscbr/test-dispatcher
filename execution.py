@@ -6,8 +6,7 @@ from typing import Callable
 
 import prompts
 import query
-
-
+import follow_up_prompts
 POLL_INTERVAL_SECONDS = 2
 REQUIRED_FILES = ("prompts.csv", "context_prompts.csv")
 
@@ -37,6 +36,12 @@ def _wait_for_required_files(base_dir: Path) -> None:
         print(f"[exec] Waiting for files: {', '.join(missing)}")
         time.sleep(POLL_INTERVAL_SECONDS)
 
+def _has_follow_up_candidates(response_path: Path) -> bool:
+    with open(response_path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if follow_up_prompts.detects_follow_up_question(row.get("response", "")):
+                return True
+            return False
 
 def _run_query_with_clean_argv() -> int:
     original_argv = sys.argv[:]
@@ -47,6 +52,13 @@ def _run_query_with_clean_argv() -> int:
     finally:
         sys.argv = original_argv
 
+def _run_followup_with_clean_argv() -> int:
+    original_argv = sys.argv[:]
+    try:
+        sys.argv = [original_arg[0]]
+        return _run_entrypoint("follow_up_prompts.main()", follow_up_prompts.main)
+    finally:
+        sys.argv = original_argv
 
 def main() -> int:
     workdir = Path.cwd()
@@ -56,8 +68,25 @@ def main() -> int:
         return prompts_code
 
     _wait_for_required_files(workdir)
-    return _run_query_with_clean_argv()
+    query_code = _run_query_with_clean_argv()
+    if query_code != 0:
+        print(f"[exec] prompts.main() failed with exit code {prompts_code}")
+        return query_code
 
+    responses_path = workdir / "responses.csv"
+    if not responses_path.is_file():
+        print("[exec] responses.csv not found; skipping Phase 1.5")
+        return 0
+
+    if _has_follow_up_candidates(responses_path):
+        print("[exec] Follow-up candidates detected; running Phase 1.5")
+        followup_code = _run_followup_with_clean_argv()
+        if follow_up_prompts != 0:
+            print(f"[exec] follow_up_prompts.main() failed with exit code {followup_code}")
+            return followup_code
+        else:
+            print("[exec] No follow-up candidates; skipping Phase 1.5")
+            return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
