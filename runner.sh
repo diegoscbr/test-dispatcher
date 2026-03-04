@@ -18,7 +18,7 @@ trap cleanup EXIT
 git clone --depth 1 "$REPO_URL" "$TMP_DIR/repo" >/dev/null 2>&1
 cd "$TMP_DIR/repo"
 
-FILES_TO_MOVE=("prompts.py" "query.py")
+FILES_TO_MOVE=("prompts.py" "query.py" "follow_up_prompts.py")
 
 for file_name in "${FILES_TO_MOVE[@]}"; do
   if [[ ! -f "$file_name" ]]; then
