@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
+import csv
 import sys
 import time
 from pathlib import Path
 from typing import Callable
 
+import follow_up_prompts
 import prompts
 import query
-import follow_up_prompts
 POLL_INTERVAL_SECONDS = 2
 REQUIRED_FILES = ("prompts.csv", "context_prompts.csv")
 
@@ -41,7 +42,7 @@ def _has_follow_up_candidates(response_path: Path) -> bool:
         for row in csv.DictReader(f):
             if follow_up_prompts.detects_follow_up_question(row.get("response", "")):
                 return True
-            return False
+    return False
 
 def _run_query_with_clean_argv() -> int:
     original_argv = sys.argv[:]
@@ -55,7 +56,7 @@ def _run_query_with_clean_argv() -> int:
 def _run_followup_with_clean_argv() -> int:
     original_argv = sys.argv[:]
     try:
-        sys.argv = [original_arg[0]]
+        sys.argv = [original_argv[0]]
         return _run_entrypoint("follow_up_prompts.main()", follow_up_prompts.main)
     finally:
         sys.argv = original_argv
@@ -70,7 +71,7 @@ def main() -> int:
     _wait_for_required_files(workdir)
     query_code = _run_query_with_clean_argv()
     if query_code != 0:
-        print(f"[exec] prompts.main() failed with exit code {prompts_code}")
+        print(f"[exec] query.main() failed with exit code {query_code}")
         return query_code
 
     responses_path = workdir / "responses.csv"
@@ -81,12 +82,12 @@ def main() -> int:
     if _has_follow_up_candidates(responses_path):
         print("[exec] Follow-up candidates detected; running Phase 1.5")
         followup_code = _run_followup_with_clean_argv()
-        if follow_up_prompts != 0:
+        if followup_code != 0:
             print(f"[exec] follow_up_prompts.main() failed with exit code {followup_code}")
-            return followup_code
-        else:
-            print("[exec] No follow-up candidates; skipping Phase 1.5")
-            return 0
+        return followup_code
+    else:
+        print("[exec] No follow-up candidates; skipping Phase 1.5")
+        return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
