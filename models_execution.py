@@ -8,9 +8,14 @@ Execution order:
 """
 
 import importlib
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable
+
+DEFAULT_REPO_URL = "https://github.com/diegoscbr/test-dispatcher.git"
 
 PIPELINE_MODULES = [
     "model_use",
@@ -22,6 +27,31 @@ REQUIRED_AFTER_STEP = {
     "model_use": ["consumer_ai_integrations.csv"],
     "key_builder": ["key.csv"],
 }
+
+
+def _bootstrap_from_repo(repo_url: str, dest: Path) -> None:
+    """Clone the repo and move pipeline scripts to *dest*."""
+    files_to_move = [f"{m}.py" for m in PIPELINE_MODULES]
+    tmp_dir = Path(tempfile.mkdtemp())
+    try:
+        repo_dir = tmp_dir / "repo"
+        print(f"[exec] Cloning {repo_url} ...")
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, str(repo_dir)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        for name in files_to_move:
+            src = repo_dir / name
+            if not src.is_file():
+                raise FileNotFoundError(f"File not found in repo: {name}")
+            target = dest / name
+            print(f"[exec] {name} -> {target}")
+            shutil.move(str(src), str(target))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    print("[exec] Bootstrap complete.")
 
 
 def _normalize_exit_code(code: object) -> int:
@@ -60,11 +90,15 @@ def _verify_outputs(workdir: Path, module_name: str) -> bool:
 def main() -> int:
     workdir = Path(__file__).resolve().parent
 
-    # Verify all pipeline modules exist
+    # Bootstrap: clone repo and move scripts if not already present
     missing_modules = [m for m in PIPELINE_MODULES if not (workdir / f"{m}.py").is_file()]
     if missing_modules:
-        print(f"[exec] Missing pipeline modules: {', '.join(f'{m}.py' for m in missing_modules)}")
-        return 1
+        repo_url = DEFAULT_REPO_URL
+        for a in sys.argv[1:]:
+            if a.startswith(("https://", "http://", "git@")):
+                repo_url = a
+                break
+        _bootstrap_from_repo(repo_url, workdir)
 
     # Ensure workdir is on sys.path so imports resolve
     workdir_str = str(workdir)
