@@ -50,7 +50,6 @@ from urllib.parse import urlparse
 
 import openai
 import pandas as pd
-from model_usage_logger import ModelUsageLogger, extract_usage_from_response
 
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 
@@ -177,7 +176,6 @@ AFFILIATE_PARAM_RE = re.compile(r"(?i)(?:\bref\b=|\baff\b=|affiliate|utm_source=
 AGGREGATOR_HINT_RE = re.compile(r"(?i)(review|reviews|rating|ratings|compare|comparison|best-|top-?\d+|listicle|roundup)")
 
 DEFAULT_EMBEDDING_MODEL = os.environ.get("AVIS_EMBEDDING_MODEL", "text-embedding-3-large")
-_USAGE_LOGGER = ModelUsageLogger(Path(__file__), identifier_label="text")
 
 
 def _norm_host(host: str) -> str:
@@ -507,13 +505,7 @@ def _request_embeddings(
         print("ERROR: Embedding request failed:", repr(e))
         return []
     finally:
-        duration = time.perf_counter() - start
-        _USAGE_LOGGER.record(
-            model,
-            duration,
-            extract_usage_from_response(response),
-            identifier_value=identifier_value,
-        )
+        pass
 
 
 def _get_cached_embedding(
@@ -2090,11 +2082,7 @@ def _run_main() -> None:
 
 
 def main() -> None:
-    start = time.perf_counter()
-    try:
-        _run_main()
-    finally:
-        _USAGE_LOGGER.flush(time.perf_counter() - start)
+    _run_main()
 
 
 if __name__ == "__main__":
