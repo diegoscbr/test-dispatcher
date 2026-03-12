@@ -52,7 +52,14 @@ if not total:
 label_width = max(len(h) for h in headers)
 sep = "=" * 80
 
-print(f"\n  {path}  ({total} rows)")
+print(f"\n  {path}  ({total} rows, {len(headers)} columns)")
+print(sep)
+
+# Schema: print column names and index
+print("  SCHEMA")
+print("-" * 80)
+for i, h in enumerate(headers, 1):
+    print(f"  {i:>3}. {h}")
 print(sep)
 
 for idx, row in enumerate(rows, 1):

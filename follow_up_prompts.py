@@ -1852,7 +1852,7 @@ def _run_main() -> None:
         mdl = (row.get("model") or "").strip() or "unspecified"
         if pid:
             responses_map[make_response_key(pid, mdl)] = row
-    persona_map = build_persona_map(load_csv(args.audience))
+    persona_map = build_persona_map(load_csv(args.audience) if args.audience.is_file() else [])
     pmg_clients = load_pmg_clients(args.pmg_client_json)
     pmg_by_id, pmg_by_name = build_pmg_maps(pmg_clients)
 

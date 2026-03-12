@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Orchestrate the analysis / scoring / pricing pipeline.
+"""Orchestrate the analysis / scoring pipeline.
 
 Usage:
   python analysis_execution.py --lob "insurance"
@@ -8,10 +8,9 @@ Usage:
 Execution order:
   1. analysis.main()   -> analysis.csv  (requires phase2_responses_enriched.csv)
   2. weights.main()    -> weights.csv   (requires analysis.csv)
-  3. price.main()      -> aivis_final.csv (requires weights.csv + *_log.csv)
 
 The --lob argument is forwarded to analysis.py only; it is stripped
-before weights and price run so their argparse is not polluted.
+before weights runs so its argparse is not polluted.
 """
 
 import argparse
@@ -28,7 +27,6 @@ DEFAULT_REPO_URL = "https://github.com/diegoscbr/test-dispatcher.git"
 PIPELINE_MODULES = [
     "analysis",
     "weights",
-    "price",
 ]
 
 EXTRA_FILES: list[str] = []
@@ -167,24 +165,6 @@ def main() -> int:
         print(f"[exec] weights.main() failed with exit code {code}")
         return code
     if not _verify_outputs(workdir, "weights"):
-        return 1
-
-    # Step 3: Price (requires weights.csv + *_log.csv) — no extra args
-    log_files = list(workdir.glob("*_log.csv"))
-    if not log_files:
-        print("[exec] No *_log.csv files found; skipping price step")
-        print("[exec] Pipeline complete (steps 1-2 only)")
-        return 0
-
-    price = importlib.import_module("price")
-    code = _run_with_argv("price.main()", price.main)
-    if code != 0:
-        print(f"[exec] price.main() failed with exit code {code}")
-        return code
-
-    final_output = workdir / "aivis_final.csv"
-    if not final_output.is_file():
-        print("[exec] aivis_final.csv was not created")
         return 1
 
     print("[exec] Pipeline complete.")
